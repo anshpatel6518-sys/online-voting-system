@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-2">
+    <div class="col-12 col-md-8 col-lg-7">
+        <div class="card glass-panel border-0 rounded-4 overflow-hidden shadow-sm">
+            <div class="card-header text-white text-center py-4 px-3">
+                <span class="badge bg-primary-subtle text-info border border-info border-opacity-25 px-3 py-1 rounded-pill mb-2">
+                    <i class="bi bi-shield-check me-1"></i> Secure Voting Portal
+                </span>
+                <h3 class="mb-1 fw-bold text-white">{{ election.name }}</h3>
+                <p class="small mb-0 opacity-75">
+                    Conducted by <strong class="text-white">{{ election.conductor }}</strong> &bull; Please scan your face to authenticate
+                </p>
+            </div>
+            <div class="card-body p-4 p-md-5 text-center">
+                <div id="video-container"
+                    class="position-relative mb-4 bg-dark rounded-4 overflow-hidden shadow-sm mx-auto"
+                    style="width: 100%; max-width: 480px; height: 350px; display: none;">
+                    <video id="webcam" autoplay muted playsinline class="w-100 h-100 object-fit-cover"></video>
+                    <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                    <div id="scanning-overlay"
+                        class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-dark bg-opacity-75 text-white"
+                        style="display: none !important;">
+                        <div class="spinner-border text-primary mb-2" role="status"></div>
+                        <span class="fw-bold fs-5">Verifying Identity...</span>
+                    </div>
+                </div>
+
+                <div id="status-message" class="alert alert-info mb-4" style="display: none;">
+                    Initializing camera...
+                </div>
+
+                <div id="error-alert" class="alert alert-danger mb-4" style="display: none;"></div>
+
+                <div id="start-container">
+                    <i class="bi bi-person-bounding-box dt-icon-lg text-primary mb-3 d-block"
+                        style="font-size: 3.8rem;"></i>
+                    <p class="text-muted mb-4">Click below to start your webcam and authenticate with your registered face for <strong>{{ election.name }}</strong>.</p>
+                    <button id="start-btn" class="btn btn-premium btn-lg rounded-pill py-3 px-5 fw-bold shadow-sm">
+                        <i class="bi bi-camera-fill me-2"></i> Start Facial Verification
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="{{ url_for('login') }}" class="text-muted text-decoration-none small">
+                <i class="bi bi-arrow-left me-1"></i> Return to Portal Home
+            </a>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/face-api.min.js"></script>
+<script>
+    const ELECTION_ID = {{ election.id }};
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const startContainer = document.getElementById('start-container');
+        const videoContainer = document.getElementById('video-container');
+        const statusMessage = document.getElementById('status-message');
+        const errorAlert = document.getElementById('error-alert');
+        const scanningOverlay = document.getElementById('scanning-overlay');
+
+        let modelsLoaded = false;
+        let detectionInProcess = false;
+
+        async function loadModels() {
+            try {
+                statusMessage.textContent = "Loading A.I. Models...";
+                statusMessage.style.display = "block";
+
+                const MODEL_URL = '/static/models/';
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                modelsLoaded = true;
+                statusMessage.textContent = "Models loaded. Starting webcam...";
+            } catch (err) {
+                console.error("Error loading models:", err);
+                showError("Failed to load facial recognition models. Check your internet connection.");
+            }
+        }
+
+        function showError(msg) {
+            errorAlert.textContent = msg;
+            errorAlert.style.display = 'block';
+            statusMessage.style.display = 'none';
+            scanningOverlay.style.setProperty('display', 'none', 'important');
+            detectionInProcess = false;
+        }
+
+        async function startWebcam() {
+            startContainer.style.display = 'none';
+            videoContainer.style.display = 'block';
+
+            if (!modelsLoaded) {
+                await loadModels();
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = stream;
+            } catch (err) {
+                showError("Camera access denied or unsupported.");
+            }
+        }
+
+        startBtn.addEventListener("click", startWebcam);
+
+        video.addEventListener("play", () => {
+            statusMessage.style.display = "none";
+            const displaySize = { width: video.videoWidth || 480, height: video.videoHeight || 350 };
+            faceapi.matchDimensions(overlay, displaySize);
+
+            // Canvas snapshot helper
+            const snapCanvas = document.createElement('canvas');
+
+            const scanInterval = setInterval(async () => {
+                if (video.paused || video.ended || !modelsLoaded || detectionInProcess) return;
+
+                const detections = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detections) {
+                    const ctx = overlay.getContext('2d');
+                    ctx.clearRect(0, 0, overlay.width, overlay.height);
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    faceapi.draw.drawDetections(overlay, resizedDetections);
+
+                    detectionInProcess = true;
+                    scanningOverlay.style.setProperty('display', 'flex', 'important');
+
+                    // Capture frame to base64
+                    snapCanvas.width = video.videoWidth || 480;
+                    snapCanvas.height = video.videoHeight || 350;
+                    const snapCtx = snapCanvas.getContext('2d');
+                    snapCtx.drawImage(video, 0, 0, snapCanvas.width, snapCanvas.height);
+                    const base64Img = snapCanvas.toDataURL('image/jpeg');
+
+                    const descriptor = Array.from(detections.descriptor);
+
+                    fetch(`/api/${ELECTION_ID}/face-login`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ 
+                            image: base64Img,
+                            face_encoding: descriptor 
+                        })
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success) {
+                                window.location.href = data.redirect || "{{ url_for('vote') }}";
+                            } else {
+                                if (data.redirect) {
+                                    window.location.href = data.redirect;
+                                } else {
+                                    showError(data.error || data.message || "Authentication failed.");
+                                    setTimeout(() => { 
+                                        detectionInProcess = false; 
+                                        errorAlert.style.display = 'none'; 
+                                    }, 3500);
+                                }
+                            }
+                        })
+                        .catch(err => {
+                            showError("Server error during verification. Please try again.");
+                            setTimeout(() => { detectionInProcess = false; }, 3000);
+                        });
+                }
+            }, 1000);
+        });
+    });
+</script>
+{% endblock %}

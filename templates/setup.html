@@ -1,0 +1,610 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-2">
+    <!-- Header Summary Card -->
+    <div class="card glass-panel border-0 rounded-4 overflow-hidden mb-4 shadow-sm">
+        <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-primary-subtle text-info border border-info border-opacity-25 px-3 py-2 rounded-pill mb-2">
+                    <i class="bi bi-gear-wide-connected me-1"></i> Election Setup Portal
+                </span>
+                <h2 class="fw-bold mb-1 text-white">{{ election.name }}</h2>
+                <p class="text-secondary mb-0">
+                    <i class="bi bi-building me-1"></i> Conducted by: <strong class="text-white">{{ election.conductor }}</strong> &bull;
+                    <i class="bi bi-clock-history ms-2 me-1"></i> Duration: <strong class="text-white">{{ election.hours }} hrs</strong> &bull;
+                    <i class="bi bi-currency-rupee ms-2 me-1"></i> Total: <strong class="text-success">&#8377;{{ "%.2f"|format(election.total_cost) }}</strong>
+                </p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-3 py-2 rounded-pill fs-6">
+                    <i class="bi bi-check-circle-fill me-1"></i> Setup Active
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- STEP 1: Candidates -->
+        <div class="col-12 col-lg-6">
+            <div class="card glass-panel border-0 rounded-4 overflow-hidden h-100 shadow-sm">
+                <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary text-white rounded-circle p-2 fs-6" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+                        <h5 class="mb-0 fw-bold text-white">Candidates</h5>
+                    </div>
+                    <span class="badge bg-dark border border-secondary text-info px-3 py-2 rounded-pill">
+                        <span id="candidate-count-badge">{{ candidates|length }}</span> Candidates
+                    </span>
+                </div>
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label for="cand-name" class="form-label small fw-semibold text-secondary">Candidate Name</label>
+                                <input type="text" id="cand-name" class="form-control" placeholder="e.g. Alice Johnson" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="cand-party" class="form-label small fw-semibold text-secondary">Party / Position</label>
+                                <input type="text" id="cand-party" class="form-control" placeholder="e.g. Progressive Alliance" required>
+                            </div>
+                        </div>
+
+                        <button id="btn-add-candidate" class="btn btn-premium w-100 rounded-pill py-2 fw-bold mb-3">
+                            <i class="bi bi-plus-circle me-1"></i> Add Candidate
+                        </button>
+
+                        <div id="cand-alert" class="alert alert-danger py-2 px-3 small" style="display: none;"></div>
+
+                        <hr class="border-secondary border-opacity-25 my-4">
+
+                        <h6 class="fw-bold text-secondary mb-3 small text-uppercase tracking-wider">Candidate Roster</h6>
+                        <div id="candidates-list" class="list-group gap-2">
+                            {% for c in candidates %}
+                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 text-white py-2 px-3" id="candidate-row-{{ c.candidate_id }}">
+                                <div>
+                                    <strong class="text-white">{{ c.name }}</strong>
+                                    <span class="badge bg-secondary bg-opacity-50 text-info ms-2">{{ c.party }}</span>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger border-0 rounded-circle btn-remove-cand" data-id="{{ c.candidate_id }}" title="Remove Candidate">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            {% else %}
+                            <div id="no-candidates-msg" class="text-center py-4 text-muted small">
+                                <i class="bi bi-people fs-3 d-block mb-2 opacity-50"></i>
+                                No candidates added yet. Add at least 2 candidates.
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: Register Voters -->
+        <div class="col-12 col-lg-6">
+            <div class="card glass-panel border-0 rounded-4 overflow-hidden h-100 shadow-sm">
+                <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary text-white rounded-circle p-2 fs-6" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+                        <h5 class="mb-0 fw-bold text-white">Register Voters</h5>
+                    </div>
+                    <span class="badge bg-dark border border-secondary text-info px-3 py-2 rounded-pill">
+                        <span id="voter-count-badge">{{ voters|length }}</span> Registered
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-7">
+                            <label for="voter-name" class="form-label small fw-semibold text-secondary">Voter Name</label>
+                            <input type="text" id="voter-name" class="form-control" placeholder="e.g. John Doe" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label for="voter-age" class="form-label small fw-semibold text-secondary">Age</label>
+                            <input type="number" id="voter-age" class="form-control" placeholder="18+" min="1" required>
+                        </div>
+                    </div>
+
+                    <!-- Webcam & Photo Capture Section -->
+                    <div class="mb-3">
+                        <div class="d-flex gap-2 mb-2">
+                            <button id="btn-open-camera" type="button" class="btn btn-outline-info rounded-pill btn-sm fw-medium">
+                                <i class="bi bi-camera-video me-1"></i> Open Webcam
+                            </button>
+                            <button id="btn-capture-photo" type="button" class="btn btn-outline-warning rounded-pill btn-sm fw-medium" style="display: none;">
+                                <i class="bi bi-camera-fill me-1"></i> Capture Photo
+                            </button>
+                            <span id="cam-status" class="small text-secondary align-self-center ms-auto"></span>
+                        </div>
+
+                        <div id="webcam-box" class="position-relative bg-dark rounded-4 overflow-hidden shadow-sm mx-auto text-center" style="width: 100%; max-width: 360px; height: 240px; display: none;">
+                            <video id="voter-webcam" autoplay muted playsinline class="w-100 h-100 object-fit-cover"></video>
+                            <canvas id="voter-canvas" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                        </div>
+
+                        <div id="captured-preview-box" class="text-center p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25" style="display: none;">
+                            <img id="captured-img-preview" src="" alt="Captured Face" class="rounded-3 shadow-sm border border-info border-opacity-50" style="max-height: 120px; max-width: 160px; object-fit: cover;">
+                            <div class="small text-success mt-2">
+                                <i class="bi bi-check-circle-fill me-1"></i> Face descriptor captured & validated
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="btn-register-voter" class="btn btn-info w-100 rounded-pill py-2 fw-bold text-dark mb-3">
+                        <i class="bi bi-person-plus-fill me-1"></i> Register Voter
+                    </button>
+
+                    <div id="voter-alert" class="alert alert-danger py-2 px-3 small" style="display: none;"></div>
+
+                    <hr class="border-secondary border-opacity-25 my-4">
+
+                    <h6 class="fw-bold text-secondary mb-3 small text-uppercase tracking-wider">Registered Voters</h6>
+                    <div id="voters-list" class="list-group gap-2" style="max-height: 220px; overflow-y: auto;">
+                        {% for v in voters %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 text-white py-2 px-3">
+                            <div>
+                                <strong class="text-white">{{ v.name }}</strong>
+                                <span class="text-secondary small ms-2">(Age: {{ v.age }})</span>
+                            </div>
+                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50">
+                                <i class="bi bi-check2-circle me-1"></i> Face Registered
+                            </span>
+                        </div>
+                        {% else %}
+                        <div id="no-voters-msg" class="text-center py-4 text-muted small">
+                            <i class="bi bi-person-check fs-3 d-block mb-2 opacity-50"></i>
+                            No voters registered yet.
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: Launch Election -->
+        <div class="col-12">
+            <div class="card glass-panel border-0 rounded-4 overflow-hidden shadow-sm">
+                <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary text-white rounded-circle p-2 fs-6" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">3</span>
+                        <h5 class="mb-0 fw-bold text-white">Launch Election</h5>
+                    </div>
+                    <span class="badge bg-primary bg-opacity-25 text-info border border-info border-opacity-25 px-3 py-2 rounded-pill">
+                        Ready for Launch
+                    </span>
+                </div>
+                <div class="card-body p-4 p-md-5">
+                    <div class="row g-4 align-items-center">
+                        <div class="col-lg-7">
+                            <h5 class="fw-bold text-white mb-3"><i class="bi bi-clipboard2-check text-info me-2"></i>Election Summary</h5>
+                            <div class="row g-3 text-secondary">
+                                <div class="col-sm-6">
+                                    <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                        <small class="text-secondary d-block">Election Title</small>
+                                        <strong class="text-white fs-6">{{ election.name }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                        <small class="text-secondary d-block">Conductor / Org</small>
+                                        <strong class="text-white fs-6">{{ election.conductor }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-sm-4">
+                                    <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                        <small class="text-secondary d-block">Duration & Cost</small>
+                                        <strong class="text-white">{{ election.hours }}h &bull; &#8377;{{ "%.2f"|format(election.total_cost) }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-sm-4">
+                                    <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                        <small class="text-secondary d-block">Total Candidates</small>
+                                        <strong class="text-info fs-5" id="summary-cand-count">{{ candidates|length }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-sm-4">
+                                    <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                        <small class="text-secondary d-block">Total Voters</small>
+                                        <strong class="text-success fs-5" id="summary-voter-count">{{ voters|length }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-5 text-center text-lg-start">
+                            <div class="p-4 rounded-4 bg-dark bg-opacity-75 border border-secondary border-opacity-25">
+                                <h6 class="fw-bold text-white mb-2">Publish & Share Voting Link</h6>
+                                <p class="text-secondary small mb-3">Once launched, share the voting portal link with your registered voters.</p>
+
+                                <button id="btn-launch-election" class="btn btn-success btn-lg w-100 rounded-pill py-3 fw-bold shadow">
+                                    <i class="bi bi-rocket-takeoff-fill me-2"></i> Launch Election &rarr;
+                                </button>
+
+                                <div id="launch-success-box" class="mt-4 pt-3 border-top border-secondary border-opacity-25" style="display: none;">
+                                    <label class="form-label small fw-semibold text-info d-block text-start">
+                                        <i class="bi bi-link-45deg me-1"></i> Shareable Voter Link
+                                    </label>
+                                    <div class="input-group mb-2">
+                                        <input type="text" id="shareable-link-input" class="form-control form-control-sm text-info bg-dark" readonly>
+                                        <button id="btn-copy-link" class="btn btn-outline-info btn-sm px-3" type="button">
+                                            <i class="bi bi-clipboard me-1"></i> Copy Link
+                                        </button>
+                                    </div>
+                                    <div id="copy-status" class="small text-success text-start" style="display: none;">
+                                        <i class="bi bi-check2 me-1"></i> Link copied to clipboard!
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/face-api.min.js"></script>
+<script>
+    const ELECTION_ID = {{ election.id }};
+    let modelsLoaded = false;
+    let currentStream = null;
+    let lastCapturedDescriptor = null;
+    let lastCapturedImage = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Elements - Candidates
+        const candNameInput = document.getElementById('cand-name');
+        const candPartyInput = document.getElementById('cand-party');
+        const btnAddCandidate = document.getElementById('btn-add-candidate');
+        const candAlert = document.getElementById('cand-alert');
+        const candidatesList = document.getElementById('candidates-list');
+        const candBadge = document.getElementById('candidate-count-badge');
+        const summaryCandCount = document.getElementById('summary-cand-count');
+
+        // Elements - Voters
+        const voterNameInput = document.getElementById('voter-name');
+        const voterAgeInput = document.getElementById('voter-age');
+        const btnOpenCamera = document.getElementById('btn-open-camera');
+        const btnCapturePhoto = document.getElementById('btn-capture-photo');
+        const webcamBox = document.getElementById('webcam-box');
+        const voterWebcam = document.getElementById('voter-webcam');
+        const voterCanvas = document.getElementById('voter-canvas');
+        const capturedPreviewBox = document.getElementById('captured-preview-box');
+        const capturedImgPreview = document.getElementById('captured-img-preview');
+        const camStatus = document.getElementById('cam-status');
+        const btnRegisterVoter = document.getElementById('btn-register-voter');
+        const voterAlert = document.getElementById('voter-alert');
+        const votersList = document.getElementById('voters-list');
+        const voterBadge = document.getElementById('voter-count-badge');
+        const summaryVoterCount = document.getElementById('summary-voter-count');
+
+        // Elements - Launch
+        const btnLaunchElection = document.getElementById('btn-launch-election');
+        const launchSuccessBox = document.getElementById('launch-success-box');
+        const shareableLinkInput = document.getElementById('shareable-link-input');
+        const btnCopyLink = document.getElementById('btn-copy-link');
+        const copyStatus = document.getElementById('copy-status');
+
+        // Helper: Update candidate count
+        function updateCandidateCounts() {
+            const rows = candidatesList.querySelectorAll('[id^="candidate-row-"]');
+            candBadge.textContent = rows.length;
+            summaryCandCount.textContent = rows.length;
+            const emptyMsg = document.getElementById('no-candidates-msg');
+            if (rows.length === 0) {
+                if (!emptyMsg) {
+                    candidatesList.innerHTML = `<div id="no-candidates-msg" class="text-center py-4 text-muted small"><i class="bi bi-people fs-3 d-block mb-2 opacity-50"></i>No candidates added yet. Add at least 2 candidates.</div>`;
+                }
+            } else if (emptyMsg) {
+                emptyMsg.remove();
+            }
+        }
+
+        // Helper: Update voter count
+        function updateVoterCounts() {
+            const items = votersList.querySelectorAll('.list-group-item');
+            voterBadge.textContent = items.length;
+            summaryVoterCount.textContent = items.length;
+            const emptyMsg = document.getElementById('no-voters-msg');
+            if (items.length === 0) {
+                if (!emptyMsg) {
+                    votersList.innerHTML = `<div id="no-voters-msg" class="text-center py-4 text-muted small"><i class="bi bi-person-check fs-3 d-block mb-2 opacity-50"></i>No voters registered yet.</div>`;
+                }
+            } else if (emptyMsg) {
+                emptyMsg.remove();
+            }
+        }
+
+        // --- Step 1: Add Candidate ---
+        btnAddCandidate.addEventListener('click', async () => {
+            candAlert.style.display = 'none';
+            const name = candNameInput.value.trim();
+            const party = candPartyInput.value.trim();
+
+            if (!name || !party) {
+                candAlert.textContent = "Please enter both candidate name and party/position.";
+                candAlert.style.display = 'block';
+                return;
+            }
+
+            const origHtml = btnAddCandidate.innerHTML;
+            btnAddCandidate.disabled = true;
+            btnAddCandidate.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Adding...`;
+
+            try {
+                const res = await fetch(`/api/${ELECTION_ID}/add-candidate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, party })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    const c = data.candidate;
+                    const cId = c.id || c.candidate_id;
+                    const row = document.createElement('div');
+                    row.className = "list-group-item list-group-item-action d-flex justify-content-between align-items-center rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 text-white py-2 px-3";
+                    row.id = `candidate-row-${cId}`;
+                    row.innerHTML = `
+                        <div>
+                            <strong class="text-white">${c.name}</strong>
+                            <span class="badge bg-secondary bg-opacity-50 text-info ms-2">${c.party}</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger border-0 rounded-circle btn-remove-cand" data-id="${cId}" title="Remove Candidate">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    `;
+                    const emptyMsg = document.getElementById('no-candidates-msg');
+                    if (emptyMsg) emptyMsg.remove();
+                    candidatesList.appendChild(row);
+
+                    candNameInput.value = '';
+                    candPartyInput.value = '';
+                    updateCandidateCounts();
+                } else {
+                    candAlert.textContent = data.message || "Failed to add candidate.";
+                    candAlert.style.display = 'block';
+                }
+            } catch (err) {
+                candAlert.textContent = "Network error. Please try again.";
+                candAlert.style.display = 'block';
+            } finally {
+                btnAddCandidate.disabled = false;
+                btnAddCandidate.innerHTML = origHtml;
+            }
+        });
+
+        // Step 1: Remove candidate event delegation
+        candidatesList.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-remove-cand');
+            if (!btn) return;
+            const candId = btn.getAttribute('data-id');
+            if (!confirm('Remove this candidate?')) return;
+
+            try {
+                const res = await fetch(`/api/${ELECTION_ID}/remove-candidate/${candId}`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    const row = document.getElementById(`candidate-row-${candId}`);
+                    if (row) row.remove();
+                    updateCandidateCounts();
+                }
+            } catch (err) {
+                console.error("Remove candidate error:", err);
+            }
+        });
+
+        // --- Step 2: Camera & Face Registration ---
+        async function loadModels() {
+            if (modelsLoaded) return true;
+            try {
+                camStatus.textContent = "Loading A.I. Models...";
+                const MODEL_URL = '/static/models/';
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                modelsLoaded = true;
+                camStatus.textContent = "Models ready.";
+                return true;
+            } catch (err) {
+                console.error("Error loading models:", err);
+                camStatus.textContent = "Failed to load models.";
+                return false;
+            }
+        }
+
+        btnOpenCamera.addEventListener('click', async () => {
+            voterAlert.style.display = 'none';
+            await loadModels();
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                voterWebcam.srcObject = currentStream;
+                webcamBox.style.display = 'block';
+                btnCapturePhoto.style.display = 'inline-block';
+                btnOpenCamera.style.display = 'none';
+                camStatus.textContent = "Camera active. Click 'Capture Photo'.";
+            } catch (err) {
+                voterAlert.textContent = "Camera access denied or unsupported.";
+                voterAlert.style.display = 'block';
+            }
+        });
+
+        btnCapturePhoto.addEventListener('click', async () => {
+            voterAlert.style.display = 'none';
+            if (!voterWebcam.videoWidth) {
+                voterAlert.textContent = "Video stream is not ready yet.";
+                voterAlert.style.display = 'block';
+                return;
+            }
+
+            camStatus.textContent = "Analyzing face...";
+            const displaySize = { width: voterWebcam.videoWidth, height: voterWebcam.videoHeight };
+            faceapi.matchDimensions(voterCanvas, displaySize);
+
+            // Capture photo to canvas
+            const ctx = voterCanvas.getContext('2d');
+            voterCanvas.width = voterWebcam.videoWidth;
+            voterCanvas.height = voterWebcam.videoHeight;
+            ctx.drawImage(voterWebcam, 0, 0, voterCanvas.width, voterCanvas.height);
+            lastCapturedImage = voterCanvas.toDataURL('image/jpeg');
+
+            // Detect descriptor
+            try {
+                const detection = await faceapi.detectSingleFace(voterWebcam, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detection) {
+                    lastCapturedDescriptor = Array.from(detection.descriptor);
+                    capturedImgPreview.src = lastCapturedImage;
+                    capturedPreviewBox.style.display = 'block';
+                    camStatus.textContent = "Face captured successfully!";
+                } else {
+                    lastCapturedDescriptor = null;
+                    voterAlert.textContent = "No face clearly detected. Please face the camera and capture again.";
+                    voterAlert.style.display = 'block';
+                    camStatus.textContent = "No face detected.";
+                }
+            } catch (err) {
+                console.error("Face detection error:", err);
+                lastCapturedDescriptor = null;
+                voterAlert.textContent = "Face detection error. Please try again.";
+                voterAlert.style.display = 'block';
+            }
+        });
+
+        // Register Voter Button
+        btnRegisterVoter.addEventListener('click', async () => {
+            voterAlert.style.display = 'none';
+            const name = voterNameInput.value.trim();
+            const age = voterAgeInput.value.trim();
+
+            if (!name) {
+                voterAlert.textContent = "Please enter voter name.";
+                voterAlert.style.display = 'block';
+                return;
+            }
+            if (!age || parseInt(age) <= 0) {
+                voterAlert.textContent = "Please enter a valid age.";
+                voterAlert.style.display = 'block';
+                return;
+            }
+            if (!lastCapturedDescriptor && !lastCapturedImage) {
+                voterAlert.textContent = "Please open the webcam and capture the voter's face photo first.";
+                voterAlert.style.display = 'block';
+                return;
+            }
+
+            const origHtml = btnRegisterVoter.innerHTML;
+            btnRegisterVoter.disabled = true;
+            btnRegisterVoter.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Registering...`;
+
+            try {
+                const res = await fetch(`/api/${ELECTION_ID}/register-face`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        age: parseInt(age),
+                        face_encoding: lastCapturedDescriptor,
+                        image: lastCapturedImage
+                    })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    const v = data.voter;
+                    const item = document.createElement('div');
+                    item.className = "list-group-item d-flex justify-content-between align-items-center rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 text-white py-2 px-3";
+                    item.innerHTML = `
+                        <div>
+                            <strong class="text-white">${v.name}</strong>
+                            <span class="text-secondary small ms-2">(Age: ${v.age})</span>
+                        </div>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50">
+                            <i class="bi bi-check2-circle me-1"></i> Face Registered
+                        </span>
+                    `;
+                    const emptyMsg = document.getElementById('no-voters-msg');
+                    if (emptyMsg) emptyMsg.remove();
+                    votersList.prepend(item);
+
+                    // Reset voter inputs
+                    voterNameInput.value = '';
+                    voterAgeInput.value = '';
+                    lastCapturedDescriptor = null;
+                    lastCapturedImage = null;
+                    capturedPreviewBox.style.display = 'none';
+                    camStatus.textContent = "Voter registered! Ready for next voter.";
+                    updateVoterCounts();
+                } else {
+                    voterAlert.textContent = data.message || "Failed to register voter.";
+                    voterAlert.style.display = 'block';
+                }
+            } catch (err) {
+                voterAlert.textContent = "Network error registering voter.";
+                voterAlert.style.display = 'block';
+            } finally {
+                btnRegisterVoter.disabled = false;
+                btnRegisterVoter.innerHTML = origHtml;
+            }
+        });
+
+        // --- Step 3: Launch Election ---
+        btnLaunchElection.addEventListener('click', async () => {
+            const origHtml = btnLaunchElection.innerHTML;
+            btnLaunchElection.disabled = true;
+            btnLaunchElection.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Launching...`;
+
+            try {
+                const res = await fetch(`/setup/${ELECTION_ID}/launch`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    const fullUrl = window.location.origin + `/vote/${ELECTION_ID}`;
+                    shareableLinkInput.value = fullUrl;
+                    launchSuccessBox.style.display = 'block';
+                    btnLaunchElection.className = "btn btn-outline-success btn-lg w-100 rounded-pill py-3 fw-bold";
+                    btnLaunchElection.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i> Election Live & Active`;
+                } else {
+                    alert(data.message || "Failed to launch election.");
+                    btnLaunchElection.disabled = false;
+                    btnLaunchElection.innerHTML = origHtml;
+                }
+            } catch (err) {
+                console.error("Launch error:", err);
+                alert("Network error while launching election.");
+                btnLaunchElection.disabled = false;
+                btnLaunchElection.innerHTML = origHtml;
+            }
+        });
+
+        // Copy link handler
+        btnCopyLink.addEventListener('click', () => {
+            shareableLinkInput.select();
+            shareableLinkInput.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(shareableLinkInput.value).then(() => {
+                copyStatus.style.display = 'block';
+                btnCopyLink.innerHTML = `<i class="bi bi-check2 me-1"></i> Copied!`;
+                btnCopyLink.classList.remove('btn-outline-info');
+                btnCopyLink.classList.add('btn-info', 'text-dark');
+                setTimeout(() => {
+                    copyStatus.style.display = 'none';
+                    btnCopyLink.innerHTML = `<i class="bi bi-clipboard me-1"></i> Copy Link`;
+                    btnCopyLink.classList.add('btn-outline-info');
+                    btnCopyLink.classList.remove('btn-info', 'text-dark');
+                }, 3000);
+            }).catch(err => {
+                console.error("Copy error:", err);
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+
+{% block scripts %}
+<div id="chart-data" style="display: none;" data-labels='{{ labels | tojson | forceescape }}'
+    data-values='{{ data | tojson | forceescape }}'></div>
+<script>
+    // Auto refresh every 5 seconds
+    setTimeout(function () {
+        window.location.reload();
+    }, 5000);
+
+    // Countdown timer for display
+    let timeLeft = 5;
+    setInterval(() => {
+        timeLeft--;
+        if (timeLeft >= 0) {
+            const timeEl = document.getElementById('time');
+            if (timeEl) timeEl.innerText = timeLeft;
+        }
+    }, 1000);
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const chartDataEl = document.getElementById('chart-data');
+        const chartLabels = JSON.parse(chartDataEl.dataset.labels || '[]');
+        const chartValues = JSON.parse(chartDataEl.dataset.values || '[]');
+
+        const canvas = document.getElementById('resultsChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: 'Live Vote Count',
+                    data: chartValues,
+                    backgroundColor: [
+                        'rgba(100, 255, 218, 0.75)',
+                        'rgba(13, 110, 253, 0.75)',
+                        'rgba(255, 193, 7, 0.75)',
+                        'rgba(220, 53, 69, 0.75)',
+                        'rgba(111, 66, 193, 0.75)',
+                        'rgba(25, 135, 84, 0.75)'
+                    ],
+                    borderColor: [
+                        '#64ffda',
+                        '#0d6efd',
+                        '#ffc107',
+                        '#dc3545',
+                        '#6f42c1',
+                        '#198754'
+                    ],
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(10, 25, 47, 0.95)',
+                        borderColor: 'rgba(100, 255, 218, 0.3)',
+                        borderWidth: 1,
+                        padding: 12,
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 16, weight: 'bold' },
+                        displayColors: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0,
+                            font: { size: 13 },
+                            color: '#a8b2d1'
+                        },
+                        grid: {
+                            color: 'rgba(255,255,255,0.08)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: { size: 12, weight: 'bold' },
+                            color: '#e6f1ff'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                animation: {
+                    duration: 800
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container py-2">
+    <!-- Navigation & Status Top Bar -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 border-bottom border-secondary border-opacity-25 pb-3 gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <a href="{{ url_for('admin_results') }}" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-medium shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> All Elections
+            </a>
+            <h3 class="fw-bold mb-0" style="color: var(--text-primary);">
+                <i class="bi bi-bar-chart-line-fill text-info me-2"></i> Live Election Results
+            </h3>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 py-2 px-3 fw-normal fs-6 shadow-sm">
+                <i class="bi bi-broadcast me-1"></i> Live Updates
+            </span>
+            <span class="badge bg-dark border border-secondary text-secondary py-2 px-3 fw-normal fs-6 shadow-sm" id="countdown">
+                Reload in <span id="time" class="text-white fw-bold">5</span>s
+            </span>
+        </div>
+    </div>
+
+    <!-- Election Details Summary Card -->
+    {% if election %}
+    <div class="card glass-panel border-0 rounded-4 overflow-hidden mb-4 shadow-sm">
+        <div class="card-body p-4">
+            <div class="row g-3 align-items-center">
+                <div class="col-lg-4">
+                    <span class="badge bg-primary-subtle text-info border border-info border-opacity-25 px-3 py-1 rounded-pill mb-2">
+                        <i class="bi bi-award me-1"></i> Election Name
+                    </span>
+                    <h4 class="fw-bold text-white mb-0">{{ election.name }}</h4>
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <small class="text-secondary d-block">Conductor</small>
+                    <strong class="text-white fs-6">{{ election.conductor }}</strong>
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <small class="text-secondary d-block">Hours Purchased</small>
+                    <strong class="text-white fs-6">{{ election.hours }} hrs</strong>
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <small class="text-secondary d-block">Amount Paid</small>
+                    <strong class="text-success fs-6 fw-bold">&#8377;{{ "%.2f"|format(election.total_cost) }}</strong>
+                </div>
+                <div class="col-sm-6 col-lg-2 text-lg-end">
+                    <small class="text-secondary d-block">Status</small>
+                    {% if election.is_active %}
+                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-3 py-2 rounded-pill fs-6">
+                        <i class="bi bi-check-circle-fill me-1"></i> Active
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-50 px-3 py-2 rounded-pill fs-6">
+                        Inactive
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Chart Card -->
+    <div class="card glass-panel border-0 rounded-4 overflow-hidden mb-4 shadow-sm">
+        <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold text-white"><i class="bi bi-graph-up me-2 text-info"></i>Vote Tally Distribution</h5>
+            <span class="badge bg-primary bg-opacity-25 text-info border border-info border-opacity-25 px-3 py-2 rounded-pill">
+                Total Votes: <strong class="text-white">{{ total_votes }}</strong>
+            </span>
+        </div>
+        <div class="card-body p-4 p-md-5" style="height: 420px;">
+            <canvas id="resultsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Detailed Breakdown -->
+    <h4 class="fw-bold mb-3" style="color: var(--text-primary);">
+        <i class="bi bi-list-stars text-warning me-2"></i> Detailed Candidate Breakdown
+    </h4>
+    <div class="row g-3">
+        {% for candidate in candidates_data %}
+        <div class="col-md-6">
+            <div class="card glass-panel border-0 rounded-4 h-100 shadow-sm">
+                <div class="card-body p-4 d-flex align-items-center">
+                    {% if candidate.logo_filename %}
+                    <div class="me-4">
+                        <img src="{{ url_for('static', filename='logos/' + candidate.logo_filename) }}"
+                            alt="{{ candidate.party }} logo" width="56" height="56" class="rounded-circle shadow">
+                    </div>
+                    {% else %}
+                    <div class="me-4 d-flex align-items-center justify-content-center bg-dark bg-opacity-75 rounded-circle shadow border border-secondary border-opacity-25"
+                        style="width: 56px; height: 56px;">
+                        <i class="bi bi-flag-fill text-info fs-4"></i>
+                    </div>
+                    {% endif %}
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <h5 class="mb-0 fw-bold text-white fs-5">{{ candidate.name }}</h5>
+                            <span class="badge bg-primary rounded-pill fs-6 px-3 py-1 shadow-sm">{{ candidate.votes }} Votes</span>
+                        </div>
+                        <p class="mb-2 text-secondary small">{{ candidate.party }}</p>
+                        <div class="progress rounded-pill bg-dark" style="height: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                            {% set percentage = 0 %}
+                            {% if total_votes > 0 %}
+                            {% set percentage = (candidate.votes / total_votes * 100) %}
+                            {% endif %}
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+                                role="progressbar" style="width: {{ '%.1f'|format(percentage) }}%;" aria-valuenow="{{ percentage }}"
+                                aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="d-flex justify-content-between text-secondary mt-1" style="font-size: 0.75rem;">
+                            <span>Share</span>
+                            <span class="text-white fw-bold">{{ "%.1f"|format(percentage) }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="text-center py-4 text-secondary small">
+                No candidate data available for this election.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

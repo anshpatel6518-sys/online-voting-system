@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center g-4 mt-2">
+    <!-- Left Panel: Face Scan Login -->
+    <div class="col-12 col-lg-6">
+        <div class="card glass-panel border-0 rounded-4 overflow-hidden h-100 shadow-sm">
+            <div class="card-header text-white text-center py-4">
+                <h4 class="mb-0 fw-bold"><i class="bi bi-person-bounding-box me-2 text-info"></i>Facial Voter Authentication</h4>
+                <p class="small mb-0 mt-1 opacity-75">Please scan your face to authenticate and vote</p>
+            </div>
+            <div class="card-body p-4 p-md-5 text-center d-flex flex-column justify-content-center">
+                <div id="video-container"
+                    class="position-relative mb-4 bg-dark rounded-4 overflow-hidden shadow-sm mx-auto"
+                    style="width: 100%; max-width: 440px; height: 330px; display: none;">
+                    <video id="webcam" autoplay muted playsinline class="w-100 h-100 object-fit-cover"></video>
+                    <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                    <div id="scanning-overlay"
+                        class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-dark bg-opacity-75 text-white"
+                        style="display: none !important;">
+                        <div class="spinner-border text-primary mb-2" role="status"></div>
+                        <span class="fw-bold fs-5">Matching Face...</span>
+                    </div>
+                </div>
+
+                <div id="status-message" class="alert alert-info mb-4" style="display: none;">
+                    Initializing camera...
+                </div>
+
+                <div id="start-container">
+                    <i class="bi bi-person-bounding-box dt-icon-lg text-primary mb-3 d-block"
+                        style="font-size: 3.5rem;"></i>
+                    <p class="text-muted mb-4">Click below to start your webcam and login automatically with your registered face.</p>
+                    <button id="start-btn" class="btn btn-premium btn-lg rounded-pill py-3 px-5 fw-bold shadow-sm w-100">
+                        <i class="bi bi-camera-fill me-2"></i> Start Facial Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Conduct an Election Subscription -->
+    <div class="col-12 col-lg-6">
+        <div class="card glass-panel border-0 rounded-4 overflow-hidden h-100 shadow-sm">
+            <div class="card-header text-white text-center py-4">
+                <h4 class="mb-0 fw-bold">🗳️ Conduct an Election</h4>
+                <p class="small mb-0 mt-1 opacity-75">Buy a subscription to set up your election</p>
+            </div>
+            <div class="card-body p-4 p-md-5 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="mb-3">
+                        <label for="elec-name" class="form-label fw-semibold">Election Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-award"></i></span>
+                            <input type="text" class="form-control" id="elec-name" placeholder="e.g. Student Council Elections 2026" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="conductor-name" class="form-label fw-semibold">Your Name / Organisation</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-building"></i></span>
+                            <input type="text" class="form-control" id="conductor-name" placeholder="e.g. Apex University / John Doe" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="hours" class="form-label fw-semibold">Duration (Hours)</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-clock-history"></i></span>
+                            <input type="number" class="form-control" id="hours" min="1" max="720" placeholder="e.g. 2" required>
+                        </div>
+                    </div>
+
+                    <div id="cost-preview" class="p-3 mb-4 rounded-3 text-center" style="background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(100, 255, 218, 0.3);">
+                        <span class="text-secondary">Estimated Cost: <strong class="text-white">0 hrs &times; &#8377;499</strong> = <span class="text-success fw-bold fs-5">&#8377;0</span></span>
+                    </div>
+                </div>
+
+                <div>
+                    <button id="btn-activate" class="btn btn-success btn-lg w-100 rounded-pill py-3 fw-bold shadow-sm">
+                        Activate Election &rarr;
+                    </button>
+
+                    <div id="election-error-alert" class="alert alert-danger mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-center mt-4 d-flex justify-content-center gap-3">
+    <a href="{{ url_for('admin_login') }}" class="text-muted text-decoration-none small">
+        <i class="bi bi-gear-fill me-1"></i> Admin Portal
+    </a>
+</div>
+
+<script src="/static/js/face-api.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // --- Facial Login Setup ---
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const startContainer = document.getElementById('start-container');
+        const videoContainer = document.getElementById('video-container');
+        const statusMessage = document.getElementById('status-message');
+        const errorAlert = document.getElementById('error-alert') || document.createElement('div');
+        const scanningOverlay = document.getElementById('scanning-overlay');
+
+        if (!document.getElementById('error-alert')) {
+            errorAlert.id = 'error-alert';
+            errorAlert.className = 'alert alert-danger mt-3';
+            errorAlert.style.display = 'none';
+            videoContainer.parentElement.appendChild(errorAlert);
+        }
+
+        let modelsLoaded = false;
+        let detectionInProcess = false;
+
+        async function loadModels() {
+            try {
+                statusMessage.textContent = "Loading A.I. Models...";
+                statusMessage.style.display = "block";
+
+                const MODEL_URL = '/static/models/';
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                modelsLoaded = true;
+                statusMessage.textContent = "Models loaded. Starting webcam...";
+            } catch (err) {
+                console.error("Error loading models:", err);
+                showError("Failed to load facial recognition models. Check your internet connection.");
+            }
+        }
+
+        function showError(msg) {
+            errorAlert.textContent = msg;
+            errorAlert.style.display = 'block';
+            statusMessage.style.display = 'none';
+            scanningOverlay.style.setProperty('display', 'none', 'important');
+            detectionInProcess = false;
+        }
+
+        async function startWebcam() {
+            startContainer.style.display = 'none';
+            videoContainer.style.display = 'block';
+
+            if (!modelsLoaded) {
+                await loadModels();
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = stream;
+            } catch (err) {
+                showError("Camera access denied or unsupported.");
+            }
+        }
+
+        startBtn.addEventListener("click", startWebcam);
+
+        video.addEventListener("play", () => {
+            statusMessage.style.display = "none";
+            const displaySize = { width: video.videoWidth || 480, height: video.videoHeight || 360 };
+            faceapi.matchDimensions(overlay, displaySize);
+
+            setInterval(async () => {
+                if (video.paused || video.ended || !modelsLoaded || detectionInProcess) return;
+
+                const detections = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detections) {
+                    const ctx = overlay.getContext('2d');
+                    ctx.clearRect(0, 0, overlay.width, overlay.height);
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    faceapi.draw.drawDetections(overlay, resizedDetections);
+
+                    // Successfully found a face and descriptor
+                    detectionInProcess = true;
+                    scanningOverlay.style.setProperty('display', 'flex', 'important');
+
+                    const descriptor = Array.from(detections.descriptor);
+
+                    fetch("{{ url_for('api_face_login') }}", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ face_encoding: descriptor })
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success) {
+                                window.location.href = data.redirect;
+                            } else {
+                                showError(data.error || "Authentication failed.");
+                                setTimeout(() => { detectionInProcess = false; errorAlert.style.display = 'none'; }, 3000);
+                            }
+                        })
+                        .catch(err => {
+                            showError("Server error. Please try again.");
+                            setTimeout(() => { detectionInProcess = false; }, 3000);
+                        });
+                }
+            }, 1000); // Check every second
+        });
+
+        // --- Conduct Election Form Setup ---
+        const elecNameInput = document.getElementById('elec-name');
+        const conductorNameInput = document.getElementById('conductor-name');
+        const hoursInput = document.getElementById('hours');
+        const costPreview = document.getElementById('cost-preview');
+        const btnActivate = document.getElementById('btn-activate');
+        const electionErrorAlert = document.getElementById('election-error-alert');
+
+        const RATE_PER_HOUR = 499.0;
+
+        function updateCostPreview() {
+            const hoursVal = parseFloat(hoursInput.value);
+            if (!isNaN(hoursVal) && hoursVal > 0) {
+                const total = Math.round(hoursVal * RATE_PER_HOUR);
+                costPreview.innerHTML = `<span class="text-secondary">Estimated Cost: <strong class="text-white">${hoursVal} hrs &times; &#8377;${RATE_PER_HOUR}</strong> = <span class="text-success fw-bold fs-5">&#8377;${total.toLocaleString('en-IN')}</span></span>`;
+            } else {
+                costPreview.innerHTML = `<span class="text-secondary">Estimated Cost: <strong class="text-white">0 hrs &times; &#8377;${RATE_PER_HOUR}</strong> = <span class="text-success fw-bold fs-5">&#8377;0</span></span>`;
+            }
+        }
+
+        hoursInput.addEventListener('input', updateCostPreview);
+
+        btnActivate.addEventListener('click', async () => {
+            electionErrorAlert.style.display = 'none';
+            electionErrorAlert.textContent = '';
+
+            const election_name = elecNameInput.value.trim();
+            const conductor = conductorNameInput.value.trim();
+            const hours = parseFloat(hoursInput.value);
+
+            if (!election_name) {
+                electionErrorAlert.textContent = "Please enter an election name.";
+                electionErrorAlert.style.display = 'block';
+                elecNameInput.focus();
+                return;
+            }
+
+            if (!conductor) {
+                electionErrorAlert.textContent = "Please enter the conductor or organisation name.";
+                electionErrorAlert.style.display = 'block';
+                conductorNameInput.focus();
+                return;
+            }
+
+            if (isNaN(hours) || hours <= 0) {
+                electionErrorAlert.textContent = "Please specify a valid duration in hours (min 1).";
+                electionErrorAlert.style.display = 'block';
+                hoursInput.focus();
+                return;
+            }
+
+            const originalBtnHtml = btnActivate.innerHTML;
+            btnActivate.disabled = true;
+            btnActivate.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Activating Election...`;
+
+            try {
+                const response = await fetch('/api/create-election', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        election_name: election_name,
+                        conductor: conductor,
+                        hours: hours
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    const electionId = data.election_id || (data.redirect ? data.redirect.split('/').pop() : '');
+                    window.location.href = data.redirect || `/setup/${electionId}`;
+                } else {
+                    electionErrorAlert.textContent = data.error || 'Failed to create election. Please try again.';
+                    electionErrorAlert.style.display = 'block';
+                    btnActivate.disabled = false;
+                    btnActivate.innerHTML = originalBtnHtml;
+                }
+            } catch (err) {
+                console.error("Create election error:", err);
+                electionErrorAlert.textContent = 'A network error occurred. Please try again.';
+                electionErrorAlert.style.display = 'block';
+                btnActivate.disabled = false;
+                btnActivate.innerHTML = originalBtnHtml;
+            }
+        });
+    });
+</script>
+{% endblock %}

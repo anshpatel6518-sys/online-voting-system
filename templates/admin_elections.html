@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 border-bottom border-secondary border-opacity-25 pb-3 gap-3">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: var(--text-primary);">
+                <i class="bi bi-collection-play-fill text-info me-2"></i> All Elections Overview
+            </h2>
+            <p class="text-secondary small mb-0">Select an election to monitor live results, voter turnout, and candidate breakdown</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary bg-opacity-25 text-info border border-info border-opacity-25 py-2 px-3 fs-6 rounded-pill">
+                <i class="bi bi-layers-fill me-1"></i> {{ elections|length }} Total Elections
+            </span>
+            <a href="{{ url_for('admin_logout') }}" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-medium">
+                <i class="bi bi-box-arrow-right me-1"></i> Logout
+            </a>
+        </div>
+    </div>
+
+    {% if elections %}
+    <div class="card glass-panel border-0 rounded-4 overflow-hidden shadow-sm mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="background: transparent;">
+                <thead class="border-bottom border-secondary border-opacity-25 small text-uppercase tracking-wider" style="background-color: #f8fafc;">
+                    <tr>
+                        <th class="py-3 px-4" style="color: #334155;">Election Details</th>
+                        <th class="py-3 px-3" style="color: #334155;">Conductor</th>
+                        <th class="py-3 px-3" style="color: #334155;">Duration & Cost</th>
+                        <th class="py-3 px-3 text-center" style="color: #334155;">Voters</th>
+                        <th class="py-3 px-3 text-center" style="color: #334155;">Votes Cast</th>
+                        <th class="py-3 px-3 text-center" style="color: #334155;">Status</th>
+                        <th class="py-3 px-4 text-end" style="color: #334155;">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-secondary divide-opacity-25">
+                    {% for e in elections %}
+                    <tr class="border-bottom border-secondary border-opacity-10" style="transition: background-color 0.2s ease;">
+                        <td class="py-3 px-4">
+                            <div class="fw-bold fs-6 admin-election-name" style="color: #0a192f !important;">{{ e.name }}</div>
+                            <small class="admin-table-muted-text" style="color: #64748b !important;">
+                                <i class="bi bi-calendar3 me-1"></i> {{ e.created_at.strftime('%b %d, %Y %H:%M') if e.created_at else 'N/A' }}
+                            </small>
+                        </td>
+                        <td class="py-3 px-3">
+                            <span class="fw-medium admin-table-dark-text" style="color: #1e293b !important;">{{ e.conductor }}</span>
+                        </td>
+                        <td class="py-3 px-3">
+                            <div class="fw-semibold admin-table-dark-text" style="color: #1e293b !important;">{{ e.hours }} hrs</div>
+                            <small class="text-success fw-bold">&#8377;{{ "%.2f"|format(e.total_cost) }}</small>
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            <span class="badge bg-secondary bg-opacity-50 text-info px-3 py-1 rounded-pill">
+                                {{ e.voter_count }} Voters
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50 px-3 py-1 rounded-pill fw-bold">
+                                {{ e.votes_count }} Votes
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            {% if e.is_active %}
+                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-3 py-1 rounded-pill">
+                                <i class="bi bi-broadcast me-1"></i> Active
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-50 px-3 py-1 rounded-pill">
+                                Inactive
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-end">
+                            <a href="{{ url_for('admin_results', election_id=e.id) }}" class="btn btn-premium btn-sm rounded-pill px-3 fw-bold shadow-sm">
+                                View Results &rarr;
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card glass-panel border-0 rounded-4 text-center p-5 shadow-sm">
+        <i class="bi bi-clipboard-x fs-1 text-secondary mb-3 opacity-50"></i>
+        <h4 class="text-white fw-bold mb-2">No Elections Conducted Yet</h4>
+        <p class="text-secondary small mb-4">Start by creating an election from the home portal subscription panel.</p>
+        <div>
+            <a href="{{ url_for('login') }}" class="btn btn-premium rounded-pill px-4 py-2 fw-bold">
+                Go to Portal Home
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
